@@ -41,7 +41,7 @@ def print_tikz(args, prediction_edges, words):
     string = """\\begin{dependency}[hide label, edge unit distance=.5ex]
   \\begin{deptext}[column sep=0.05cm]
   """
-    string += "\\& ".join([x.replace('$', '\$').replace('&', '+') for x in words]) + " \\\\" + '\n'
+    string += "\\& ".join([x.replace('$', r'\$').replace('&', '+') for x in words]) + " \\\\" + '\n'
     string += "\\end{deptext}" + '\n'
     for i_index, j_index in prediction_edges:
       string += '\\depedge[edge style={{red!60!}}, edge below]{{{}}}{{{}}}{{{}}}\n'.format(i_index+1,j_index+1, '.')
@@ -171,7 +171,7 @@ if __name__ == '__main__':
     torch.manual_seed(cli_args.seed)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
-  yaml_args= yaml.load(open(cli_args.experiment_config))
+  yaml_args= yaml.load(open(cli_args.experiment_config), Loader=yaml.Loader)
   run_experiment.setup_new_experiment_dir(cli_args, yaml_args, cli_args.results_dir)
   device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
   yaml_args['device'] = device
