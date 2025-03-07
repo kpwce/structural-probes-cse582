@@ -20,6 +20,7 @@ import yaml
 from pytorch_pretrained_bert import BertModel, BertTokenizer
 from tqdm import tqdm
 from convert_dp_to_trees import get_edit_distance
+from language_alignment import get_alignment
 
 
 def write_distance_csv(args, words, prediction, uid):
@@ -72,7 +73,17 @@ def write_edges_csv(args, words, prediction, uid):
         # print_tikz(args, predicted_edges, untokenized_sent)
     
     return predicted_edges
-        
+
+def write_token_lang_csv(args, cs, en, es, uid):
+    classification = get_alignment(cs, en, es)
+    cs_tokens = cs.split()
+    csv_filename = os.path.join(args['reporting']['root'], f'demo-tokenlang-pred{uid}.csv') 
+    with open(csv_filename, mode='w', newline='', encoding='utf-8') as file:
+        writer = csv.writer(file)
+        writer.writerow(['Word', 'Lang'])
+        for i in range(len(cs_tokens)):
+            writer.writerow([cs_tokens[i], classification[i]])
+
 def probe_line(args, line, uid, tokenizer, model, distance_probe, depth_probe):
     
     # Tokenize the sentence and create tensor inputs to BERT
@@ -154,6 +165,7 @@ def report_on_stdin(args, file_path):
             en_edges = probe_line(args, en_line, f"{index}_en", tokenizer, model, distance_probe, depth_probe) 
             es_edges = probe_line(args, es_line, f"{index}_es", tokenizer, model, distance_probe, depth_probe)
             
+            write_token_lang_csv(args, cs_line.strip(), en_line.strip(), es_line.strip(), index)
             print(f"Base line: en-en: {get_edit_distance(en_edges, en_edges)}, cs-cs: {get_edit_distance(cs_edges, cs_edges)}, es-es: {get_edit_distance(es_edges, es_edges)}")
             print("Edit distance (cs-en) %d".format(get_edit_distance(cs_edges, en_edges)))
             print("Edit distance (cs-es) %d".format(get_edit_distance(cs_edges, es_edges)))
