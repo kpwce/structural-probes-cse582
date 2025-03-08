@@ -48,12 +48,6 @@ def get_alignment_2(sublist, monolingual_list):
             best_subarray = subarray_current
     return best_subarray
 
-
-        
-
-        
-        
-
 # use black box classifier to get tree subarrays
 def get_lang_subintervals(cs_data):
     lid = LanguageIdentification('spa-eng') 

@@ -19,8 +19,8 @@ import torch
 import yaml
 from pytorch_pretrained_bert import BertModel, BertTokenizer
 from tqdm import tqdm
-from convert_dp_to_trees import get_edit_distance
-from language_alignment import get_lang_subintervals
+from convert_dp_to_trees import filter_subtree_edges, get_edit_distance
+from language_alignment import get_alignment_2, get_lang_subintervals
 
 
 def write_distance_csv(args, words, prediction, uid):
@@ -157,8 +157,6 @@ def report_on_stdin(args, file_path):
             en_list = get_lang_subintervals(en_line)
             es_list = get_lang_subintervals(es_line)
             
-            
-            
             cs_sentence_from_trees = ""
             for tree in subtree_classification:
                 cs_sentence_from_trees += ' '.join(tree)
@@ -171,6 +169,20 @@ def report_on_stdin(args, file_path):
             print("Edit distance (cs-en) %d".format(get_edit_distance(cs_edges, en_edges)))
             print("Edit distance (cs-es) %d".format(get_edit_distance(cs_edges, es_edges)))
             print("Edit distance (en-es) %d".format(get_edit_distance(en_edges, es_edges)))
+            
+            # get alignment for each subtree and their GED
+            for i, cs_target_list in enumerate(subtree_classification):
+                matching_en_list = []
+                if all_langs[i] == "en":
+                    matching_en_list = get_alignment_2(cs_target_list, en_list)
+                    mono_subtree_edges = filter_subtree_edges(matching_en_list, en_edges, en_word_to_id)
+                if all_langs[i] == "spa":
+                    matching_es_list = get_alignment_2(cs_target_list, es_list)
+                    mono_subtree_edges = filter_subtree_edges(matching_es_list, es_edges, es_word_to_id)
+                else:
+                    raise Exception(f"{all_langs[i]} Language not found")
+                cs_subtree_edges = filter_subtree_edges(cs_target_list, cs_edges, cs_word_to_id)
+                print(f"Subtree '{' '.join(cs_target_list)}' GED: {get_edit_distance(cs_subtree_edges, mono_subtree_edges)}")
 
 
 if __name__ == '__main__':
