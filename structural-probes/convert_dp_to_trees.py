@@ -18,5 +18,22 @@ def get_edit_distance(graph_1_edges, graph_2_edges):
     
     return distance
 
-
+def filter_subtree_edges(subtree_words, edges, words_to_id):
+    """
+    Given a list of words in a subtree, return the edges only within that subtree
+    
+    :Parameters:
+    - :subtree_words: a list of words in the subtree
+    - :edges: a list of tuples representing the edges in the graph
+    - :words_to_id: a dictionary mapping words to their indices
+    """
+    
+    subtree_edges = []
+    subtree_ids = [words_to_id[word] for word in subtree_words]
+    
+    for edge in edges:
+        if edge[0] in subtree_ids and edge[1] in subtree_ids:
+            subtree_edges.append(edge)
+    
+    return subtree_edges
 
