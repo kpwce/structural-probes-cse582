@@ -29,6 +29,10 @@ def filter_subtree_edges(subtree_words, edges, words_to_id):
     """
     
     subtree_edges = []
+    print(subtree_words)
+    # [['Y', 'desde', 'cuando'], ['Mcdonals'], ['vende']]
+    print(words_to_id)
+    # {'Y': 0, 'desde': 1, 'cuando': 2, 'Mcdonals': 3, 'vende': 4, 'nuggets': 5, 'picantes': 6}
     subtree_ids = [words_to_id[word] for word in subtree_words]
     
     for edge in edges:

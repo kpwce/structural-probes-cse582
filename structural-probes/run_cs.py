@@ -20,7 +20,7 @@ import yaml
 from pytorch_pretrained_bert import BertModel, BertTokenizer
 from tqdm import tqdm
 from convert_dp_to_trees import filter_subtree_edges, get_edit_distance
-from language_alignment import get_alignment_2, get_lang_subintervals
+from language_alignment import get_alignment_2, get_lang_subintervals, assign_lang_to_ne
 
 
 def write_distance_csv(args, words, prediction, uid):
@@ -150,37 +150,56 @@ def report_on_stdin(args, file_path):
         reader = csv.reader(f)
         next(reader)
         for index, row in tqdm(enumerate(reader)):
-            cs_line = row[2]
-            en_line = row[3]
-            es_line = row[4]
+            cs_line = row[2].translate(str.maketrans('', '', string.punctuation))
+            en_line = row[3].translate(str.maketrans('', '', string.punctuation))
+            es_line = row[4].translate(str.maketrans('', '', string.punctuation))
+            
             subtree_classification, all_langs = get_lang_subintervals(cs_line)
-            en_list = get_lang_subintervals(en_line)
-            es_list = get_lang_subintervals(es_line)
+            en_lists, _ = get_lang_subintervals(en_line)
+            es_lists, _ = get_lang_subintervals(es_line)
+            en_list = []
+            for current_list in en_lists:
+                en_list.extend(current_list)
+            es_list = []
+            for current_list in es_lists:
+                es_list.extend(current_list)
+            subtree_classification, all_langs = assign_lang_to_ne(subtree_classification, all_langs, en_list, es_list)
+            
+            print(en_list)
+            print(es_list)
+            print(f"lists: {subtree_classification}, langs: {all_langs}")
             
             cs_sentence_from_trees = ""
-            for tree in subtree_classification:
-                cs_sentence_from_trees += ' '.join(tree)
-
-            cs_edges, cs_word_to_id = probe_line(args, cs_line, f"{index}_cs", tokenizer, model, distance_probe, depth_probe)
-            en_edges, en_word_to_id = probe_line(args, en_line, f"{index}_en", tokenizer, model, distance_probe, depth_probe) 
-            es_edges, es_word_to_id = probe_line(args, es_line, f"{index}_es", tokenizer, model, distance_probe, depth_probe)
+            cs_sentence_from_trees = ' '.join([' '.join(tree) for tree in subtree_classification]) 
+            en_sentence_from_trees = ' '.join([' '.join(tree) for tree in en_lists ])
+            es_sentence_from_trees = ' '.join([' '.join(tree) for tree in es_lists ])
+            print(cs_sentence_from_trees)
+            print(en_sentence_from_trees)
+            print(es_sentence_from_trees)
+            
+            cs_edges, cs_word_to_id = probe_line(args, cs_sentence_from_trees, f"{index}_cs", tokenizer, model, distance_probe, depth_probe)
+            en_edges, en_word_to_id = probe_line(args, en_sentence_from_trees, f"{index}_en", tokenizer, model, distance_probe, depth_probe) 
+            es_edges, es_word_to_id = probe_line(args, es_sentence_from_trees, f"{index}_es", tokenizer, model, distance_probe, depth_probe)
             
             print(f"Base line: en-en: {get_edit_distance(en_edges, en_edges)}, cs-cs: {get_edit_distance(cs_edges, cs_edges)}, es-es: {get_edit_distance(es_edges, es_edges)}")
-            print("Edit distance (cs-en) %d".format(get_edit_distance(cs_edges, en_edges)))
-            print("Edit distance (cs-es) %d".format(get_edit_distance(cs_edges, es_edges)))
-            print("Edit distance (en-es) %d".format(get_edit_distance(en_edges, es_edges)))
+            print("Edit distance (cs-en) %d" % get_edit_distance(cs_edges, en_edges))
+            print("Edit distance (cs-es) %d" % get_edit_distance(cs_edges, es_edges))
+            print("Edit distance (en-es) %d" % get_edit_distance(en_edges, es_edges))
             
             # get alignment for each subtree and their GED
             for i, cs_target_list in enumerate(subtree_classification):
                 matching_en_list = []
                 if all_langs[i] == "en":
                     matching_en_list = get_alignment_2(cs_target_list, en_list)
+                    print(f"matching en list: {matching_en_list}")
                     mono_subtree_edges = filter_subtree_edges(matching_en_list, en_edges, en_word_to_id)
-                if all_langs[i] == "spa":
+                elif all_langs[i] == "spa":
                     matching_es_list = get_alignment_2(cs_target_list, es_list)
+                    print(f"matching es list: {matching_es_list}")
                     mono_subtree_edges = filter_subtree_edges(matching_es_list, es_edges, es_word_to_id)
                 else:
                     raise Exception(f"{all_langs[i]} Language not found")
+                print(f"cs target list: {cs_target_list}")
                 cs_subtree_edges = filter_subtree_edges(cs_target_list, cs_edges, cs_word_to_id)
                 print(f"Subtree '{' '.join(cs_target_list)}' GED: {get_edit_distance(cs_subtree_edges, mono_subtree_edges)}")
 

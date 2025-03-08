@@ -2,6 +2,7 @@
 # with English/Spanish monolingual texts.
 # e.g., output ["en", "es", "es", ..]
 from codeswitch.codeswitch import LanguageIdentification
+import editdistance
 def get_alignment(cs_data, en_data, es_data):
     out = [] 
     progress = [[en_data.split(), 0, "en"], [es_data.split(), 0, "es"]]
@@ -47,6 +48,35 @@ def get_alignment_2(sublist, monolingual_list):
             best_cost = cost
             best_subarray = subarray_current
     return best_subarray
+
+def assign_lang_to_ne(cs_lists, cs_langs, en_list, es_list):
+    intermediate_cs_lists = []
+    intermediate_langs = []
+    [['McDonalds', 'KFC'], ['are', 'fast', 'foods']], ['ne', 'en']
+    for i, cs_list in enumerate(cs_lists):
+        if cs_langs[i] == 'ne':                
+            closest_match_in_en = min([editdistance.eval(cs_list[0], j) for j in en_list])
+            closest_match_in_es = min([editdistance.eval(cs_list[0], j) for j in es_list])
+            if closest_match_in_en < closest_match_in_es:
+                intermediate_langs.append('en')
+            else:
+                intermediate_langs.append('spa')
+        else:
+            intermediate_langs.append(cs_langs[i])
+        intermediate_cs_lists.append(cs_list)
+    
+    # coalesce adjacent list with same language
+    res = [intermediate_cs_lists[0]]
+    res_langs = [intermediate_langs[0]]
+    for i in range(1, len(intermediate_langs)):
+        if intermediate_langs[i] == res_langs[-1]:
+            res[-1].extend(intermediate_cs_lists[i])
+        else:
+            res.append(intermediate_cs_lists[i])
+            res_langs.append(intermediate_langs[i])
+    
+    return res, res_langs
+                
 
 # use black box classifier to get tree subarrays
 def get_lang_subintervals(cs_data):
