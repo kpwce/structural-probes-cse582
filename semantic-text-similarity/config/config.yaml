@@ -1,14 +1,17 @@
-train_model: True
 dataset:
   root: ../../data/semantics
 reporting:
   root: .
   csv_path: .
-training_params:
-  seeds: [60]
+encoders: None
+training_args:
+  do_train: True
+  seeds: [50, 60, 70]
   learning_rate: 0.03
   epochs: 1
   batch_size: 2
   root: models
   save_path: model1
+  max_num_samples_train: 10
+  max_num_samples_validation: 10
 
