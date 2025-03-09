@@ -154,6 +154,10 @@ def report_on_stdin(args, file_path):
             en_line = row[3].translate(str.maketrans('', '', string.punctuation))
             es_line = row[4].translate(str.maketrans('', '', string.punctuation))
             
+            num_tokens = len(es_line.split())
+            if (1 > num_tokens or num_tokens > 10):
+                continue
+
             subtree_classification, all_langs = get_lang_subintervals(cs_line)
             en_lists, _ = get_lang_subintervals(en_line)
             es_lists, _ = get_lang_subintervals(es_line)
@@ -173,9 +177,6 @@ def report_on_stdin(args, file_path):
             cs_sentence_from_trees = ' '.join([' '.join(tree) for tree in subtree_classification]) 
             en_sentence_from_trees = ' '.join([' '.join(tree) for tree in en_lists ])
             es_sentence_from_trees = ' '.join([' '.join(tree) for tree in es_lists ])
-            print(cs_sentence_from_trees)
-            print(en_sentence_from_trees)
-            print(es_sentence_from_trees)
             
             cs_edges, cs_word_to_id = probe_line(args, cs_sentence_from_trees, f"{index}_cs", tokenizer, model, distance_probe, depth_probe)
             en_edges, en_word_to_id = probe_line(args, en_sentence_from_trees, f"{index}_en", tokenizer, model, distance_probe, depth_probe) 
