@@ -102,8 +102,6 @@ def test_after_train(model, encoder, results_save_path):
 
     test_dataset = concatenate_datasets([es_dataset['test'], en_dataset['test']])
     test_examples = prep_data(test_dataset)
-
-    breakpoint()
     
     test_evaluator = evaluation.EmbeddingSimilarityEvaluator.from_input_examples(test_examples)
     test_evaluator(model, output_path=results_save_path)
