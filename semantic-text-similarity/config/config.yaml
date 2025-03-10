@@ -7,11 +7,11 @@ encoders: None
 training_args:
   do_train: True
   seeds: [50, 60, 70]
-  learning_rate: 0.03
-  epochs: 1
-  batch_size: 2
+  learning_rate: 0.00002  # keep lr small to avoid overfitting
+  epochs: 5
+  batch_size: 64
   root: models
-  save_path: model1
+  save_path: batch_size_32
   max_num_samples_train: 10
   max_num_samples_validation: 10
 

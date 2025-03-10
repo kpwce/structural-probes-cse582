@@ -152,14 +152,14 @@ if __name__  == "__main__":
                                                                                     name='sts-dev')  # testing the model
 
             # evaluator = evaluation.EmbeddingSimilarityEvaluator.from_input_examples(test_examples, name=f'{encoder}-sts-2e-5-lr')
-            evaluator(model, output_path=results_save_path)
-
+            print(evaluator(model, output_path=results_save_path))
+            
             # Configure the training. We skip evaluation in this example
             warmup_steps = math.ceil(len(train_dataloader) * epochs * 0.1)  # 10% of train data for warm-up
             logging.info("Warmup-steps: {}".format(warmup_steps))
 
             model_path = os.path.join(args.training_args.root, args.training_args.save_path,
-                                    f'{encoder}_sts_fit_2e-6.params')
+                                    f'{encoder}_sts_fit_2e-6')
 
             model.fit(train_objectives=[(train_dataloader, train_loss)],
                       evaluator=evaluator,
@@ -173,4 +173,4 @@ if __name__  == "__main__":
             test_examples = prep_data(test_dataset)
             test_evaluator = evaluation.EmbeddingSimilarityEvaluator.from_input_examples(test_examples,
                                                                                         name=f'{encoder}-sts-2e-5-lr')
-            test_evaluator(model, output_path=results_save_path)
+            print(test_evaluator(model, output_path=results_save_path))
