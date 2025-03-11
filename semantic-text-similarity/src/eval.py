@@ -68,7 +68,7 @@ def test_cs_experiments(list_df, lang1, lang2, results_save_path):
     outputs_df = pd.DataFrame({'preds': preds,
                                'gold_labels': gold})
 
-    outputs_df.to_csv(os.path.join(results_save_path, f'sts_model_{encoder}_{lang1}_{lang2}_{lr}_preds.csv'))
+    outputs_df.to_csv(os.path.join(results_save_path, f'sts_model_{encoder}_{lang1}_{lang2}_preds.csv'))
     plot_df(outputs_df, encoder, spearman_rank, f'{lang1}_vs_{lang2}', results_save_path)
 
     # to get score from evaluator using sentbert library
@@ -166,6 +166,13 @@ if __name__  == "__main__":
     print(data.head())
 
 
+    cs_cs = None
+    es_es = None
+    en_en = None
+    en_es = None
+    cs_es = None
+    cs_en = None
+
     encoders = ['xlm-roberta-base'] # 'bert-base-multilingual-uncased', 
     for encoder in encoders:
         model_path = os.path.join(
@@ -174,8 +181,10 @@ if __name__  == "__main__":
         )
         model = SentenceTransformer(model_path)
         test_after_train(model, encoder, args.output_dir)
-        # test_cs_experiments([cs_cs, es_es], 'cs_cs', 'es_es', lr=learning_rate)
-        # test_cs_experiments([cs_cs, en_en], 'cs_cs', 'en_en', lr=learning_rate)
+        
+        # TODO run experiments to get final resuls
+        test_cs_experiments([cs_cs, es_es], 'cs_cs', 'es_es', results_save_path=args.output_dir)
+        test_cs_experiments([cs_cs, en_en], 'cs_cs', 'en_en', results_save_path=args.output_dir)
 
-        # test_cs_experiments([en_es, cs_es], 'en_es', f'cs_es{encoder}', lr=learning_rate)
-        # test_cs_experiments([en_es, cs_en], 'en_es', f'cs_en{encoder}', lr=learning_rate)
+        test_cs_experiments([en_es, cs_es], 'en_es', f'cs_es{encoder}', results_save_path=args.output_dir)
+        test_cs_experiments([en_es, cs_en], 'en_es', f'cs_en{encoder}', results_save_path=args.output_dir)
