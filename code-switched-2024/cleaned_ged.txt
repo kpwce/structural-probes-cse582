@@ -1,4 +1,4 @@
-CS text, cs-en, cs-es, en-es
+CS text, cs-es, cs-en, en-es
 ¿Y desde cuando Mcdonals vende nuggets spicy,8.0,8.0,12.0
 Approach ideal cuando se planea proyectos en NFTs,6.0,10.0,12.0
 ¿Cuando se deja de llorar con Slipping Through My Fingers,0.0,10.0,10.0
