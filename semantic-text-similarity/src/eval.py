@@ -2,7 +2,7 @@ import os
 import pandas as pd
 from scipy import stats
 from sentence_transformers import SentenceTransformer, util, InputExample, evaluation
-from datasets import load_dataset, concatenate_datasets
+from datasets import load_dataset, concatenate_datasets, Dataset
 import argparse
 import matplotlib.pyplot as plt
 
@@ -20,7 +20,7 @@ def get_args():
     return parser.parse_args()
 
 
-def prep_data(dataset, norm=True) -> list[InputExample]:
+def prep_data(dataset, col1, col2, norm=True) -> list[InputExample]:
     """
     Prepares dataset with pairs of sentences.
 
@@ -33,12 +33,15 @@ def prep_data(dataset, norm=True) -> list[InputExample]:
                 [   InputExample(texts=[sentence1, sentence2], label=0.8), 
                     InputExample(texts=[sentence1, sentence2], label=0.2)]
     """
-    first_sent = [i['sentence1'] for i in dataset]
-    second_sent = [i['sentence2'] for i in dataset]
-    if norm:
-        norm_labels = [i['similarity_score'] / 5.0 for i in dataset]
+    first_sent = [i[col1] for i in dataset]
+    second_sent = [i[col2] for i in dataset]
+    if 'similarity_score' in dataset:
+        if norm:
+            norm_labels = [i['similarity_score'] / 5.0 for i in dataset]
+        else:
+            norm_labels = [i['similarity_score'] for i in dataset]
     else:
-        norm_labels = [i['similarity_score'] for i in dataset]
+        norm_labels = [0 for _ in dataset]
 
     return [InputExample(texts=[str(x), str(y)], label=float(z)) for x, y, z in
             zip(first_sent, second_sent, norm_labels)]
@@ -90,38 +93,40 @@ def test_cs_experiments(list_df, lang1, lang2, results_save_path):
     test_evaluator(model, output_path=results_save_path)
 
 
-def get_similarity_scores(model, dataset, output_dir: str):
+def get_similarity_scores(model, dataset, col1: str, col2: str, output_dir: str):
     """
     Saves similarity scores between sentence pairs in the dataset to results_save_path.
 
     Args:
         model (_type_): _description_
         dataset (_type_): _description_
+        col1 (str): name of first column
+        col2 (str): name of second column
         output_dir (str): _description_
     """
     test_dataset = dataset
-    test_examples = prep_data(test_dataset)
+    test_examples = prep_data(test_dataset, col1, col2)
     
     test_evaluator = evaluation.EmbeddingSimilarityEvaluator.from_input_examples(test_examples)
     test_evaluator(model, output_path=output_dir)
 
-    first_sent = [i['sentence1'] for i in test_dataset]
-    second_sent = [i['sentence2'] for i in test_dataset]
-    norm_labels = [i['similarity_score'] / 5.0 for i in test_dataset] if 'similarity_score' in test_dataset else None
+    first_sent = [i[col1] for i in test_dataset]
+    second_sent = [i[col2] for i in test_dataset]
+    # norm_labels = [i['similarity_score'] / 5.0 for i in test_dataset] if 'similarity_score' in test_dataset else None
 
     first_sent = model.encode(first_sent, convert_to_tensor=True)
     second_sent = model.encode(second_sent, convert_to_tensor=True)
     pred_scores = model.similarity(first_sent, second_sent).tolist()
-    sim_scores = norm_labels
+    # sim_scores = norm_labels
 
     preds = [pred_scores[i][i] for i in range(len(first_sent))]
     
     outputs = {'preds': preds}
-    if sim_scores is not None:
-        outputs['gold_labels'] = sim_scores
+    # if sim_scores is not None:
+    #     outputs['gold_labels'] = sim_scores
         
     outputs_df = pd.DataFrame(outputs)
-    outputs_df.to_csv(os.path.join(output_dir, f'sts_model_preds.csv'))
+    outputs_df.to_csv(os.path.join(output_dir, f'sts_model_preds_{col1}_{col2}.csv'))
     
     return preds
 
@@ -137,7 +142,7 @@ def get_spearman_rank_correlation(scores1, scores2, output_dir):
     x = scores1
     y = scores2
     plt.scatter(x, y)
-    plt.plot(x.sort_values(), y.sort_values(), color='red')
+    plt.plot(sorted(x), sorted(x), color='red')
     plt.title("Spearman correlation coefficient: {:.2f}".format(spearman_rank.statistic))
     plt.xlabel("predictions")
     plt.ylabel("gold labels")
@@ -160,19 +165,15 @@ if __name__  == "__main__":
     print(data.head())
 
     # All the columns are cs, es, en
-    cs_cs = pd.read_csv('data/semantics/cs_majEn_semantic.csv')
-    es_es = pd.read_csv('data/semantics/cs_majEs_semantic.csv')
-    en_en = None
-    en_es = None
-    cs_es = None
-    cs_en = None
+    cs_maj_en = Dataset.from_pandas(pd.read_csv('data/semantics/cs_majEn_semantic.csv'))
+    cs_maj_es = Dataset.from_pandas(pd.read_csv('data/semantics/cs_majEs_semantic.csv'))
+    cs_random = Dataset.from_pandas(pd.read_csv('data/semantics/cs_random_semantic.csv'))
     
     # Majority en cs
     # - scores cs with en, cs with es
     # Majority es cs
     # - scores cs with en, cs with cs
     # Get correlation with en with es
-    
     
     en_dataset = load_dataset("stsb_multi_mt", "en")
     es_dataset = load_dataset("stsb_multi_mt", "es")
@@ -189,15 +190,13 @@ if __name__  == "__main__":
     )
     model = SentenceTransformer(model_path)
     
-    cs_cs_scores = get_similarity_scores(model, cs_cs, args.output_dir)
-    es_es_scores = get_similarity_scores(model, es_es, args.output_dir)
-    en_en_scores = get_similarity_scores(model, en_en, args.output_dir)
+    # cs_en_scores = get_similarity_scores(model, cs_maj_en, "cs_sentences", "en_sentences", args.output_dir)
+    # cs_es_scores = get_similarity_scores(model, cs_maj_en, "cs_sentences", "es_sentences", args.output_dir)
     
-    get_spearman_rank_correlation(cs_cs_scores, es_es_scores)
+    # en_es_scores = get_similarity_scores(model, cs_maj_en, "en_sentences", "es_sentences", args.output_dir)
+    # cs_en_scores = get_similarity_scores(model, cs_maj_en, "cs_sentences", "en_sentences", args.output_dir)
     
-    # # TODO run experiments to get final resuls
-    # test_cs_experiments([cs_cs, es_es], 'cs_cs', 'es_es', results_save_path=args.output_dir)
-    # test_cs_experiments([cs_cs, en_en], 'cs_cs', 'en_en', results_save_path=args.output_dir)
-
-    # test_cs_experiments([en_es, cs_es], 'en_es', f'cs_es{encoder}', results_save_path=args.output_dir)
-    # test_cs_experiments([en_es, cs_en], 'en_es', f'cs_en{encoder}', results_save_path=args.output_dir)
+    en_es_scores = get_similarity_scores(model, cs_maj_en, "en_sentences", "es_sentences", args.output_dir)
+    cs_es_scores = get_similarity_scores(model, cs_maj_en, "cs_sentences", "es_sentences", args.output_dir)
+    
+    get_spearman_rank_correlation(en_es_scores, cs_es_scores, args.output_dir)
