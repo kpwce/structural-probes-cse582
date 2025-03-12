@@ -7,6 +7,19 @@ import argparse
 import matplotlib.pyplot as plt
 
 
+def get_args():
+    parser = argparse.ArgumentParser(description='Semantic Text Similarity Evaluation')
+    parser.add_argument('--dataset', type=str, required=True, help='Name of dataset in dataset root dir')
+    parser.add_argument('--encoder', type=str, default='xlm-roberta-base', help='Name of encoder to use')
+    # 'bert-base-multilingual-uncased'
+    parser.add_argument('--model_dir', type=str, required=True, help='Path to save the model')
+    parser.add_argument('--output_dir', type=str, required=True, help='Path to save the model')
+    parser.add_argument('--seed', type=int, default=42, help='Random seed for data shuffle')
+    parser.add_argument('--max_num_samples_eval', type=int, default=6000, help='Maximum number of samples used in evaluation')
+
+    return parser.parse_args()
+
+
 def prep_data(dataset, norm=True) -> list[InputExample]:
     """
     Prepares dataset with pairs of sentences.
@@ -29,18 +42,6 @@ def prep_data(dataset, norm=True) -> list[InputExample]:
 
     return [InputExample(texts=[str(x), str(y)], label=float(z)) for x, y, z in
             zip(first_sent, second_sent, norm_labels)]
-
-
-def plot_df(df, encoder, spearman_rank, test, results_save_path):
-    x = df.preds
-    y = df.gold_labels
-    plt.scatter(x, y)
-    plt.plot(x.sort_values(), y.sort_values(), color='red')
-    plt.title("Spearman correlation coefficient: {:.2f}".format(spearman_rank.statistic))
-    plt.xlabel("predictions")
-    plt.ylabel("gold labels")
-    plt.savefig(os.path.join(results_save_path, f"spearman_rank_test_{encoder}_{test}"))
-    plt.show()
     
     
 def test_cs_experiments(list_df, lang1, lang2, results_save_path):
@@ -89,75 +90,68 @@ def test_cs_experiments(list_df, lang1, lang2, results_save_path):
     test_evaluator(model, output_path=results_save_path)
 
 
-def test_after_train(model, encoder, results_save_path):
-    # test partition of train sts dataset/
-    en_dataset = load_dataset("stsb_multi_mt", "en")
-    es_dataset = load_dataset("stsb_multi_mt", "es")
+def get_similarity_scores(model, dataset, output_dir: str):
+    """
+    Saves similarity scores between sentence pairs in the dataset to results_save_path.
 
-    print(en_dataset)
-    print(es_dataset)
-
-    print(es_dataset['train'][100])
-    print(en_dataset['train'][100])
-
-    test_dataset = concatenate_datasets([es_dataset['test'], en_dataset['test']])
+    Args:
+        model (_type_): _description_
+        dataset (_type_): _description_
+        output_dir (str): _description_
+    """
+    test_dataset = dataset
     test_examples = prep_data(test_dataset)
     
     test_evaluator = evaluation.EmbeddingSimilarityEvaluator.from_input_examples(test_examples)
-    test_evaluator(model, output_path=results_save_path)
+    test_evaluator(model, output_path=output_dir)
 
     first_sent = [i['sentence1'] for i in test_dataset]
     second_sent = [i['sentence2'] for i in test_dataset]
-    norm_labels = [i['similarity_score'] / 5.0 for i in test_dataset]
+    norm_labels = [i['similarity_score'] / 5.0 for i in test_dataset] if 'similarity_score' in test_dataset else None
 
     first_sent = model.encode(first_sent, convert_to_tensor=True)
     second_sent = model.encode(second_sent, convert_to_tensor=True)
     pred_scores = model.similarity(first_sent, second_sent).tolist()
-    sim_scores = [score for score in norm_labels]
+    sim_scores = norm_labels
 
     preds = [pred_scores[i][i] for i in range(len(first_sent))]
-
-    # get spearman rank correlation
-    spearman_rank = stats.spearmanr(preds, sim_scores)
-    print(spearman_rank.statistic)
-
-    outputs_df = pd.DataFrame({'preds': preds,
-                               'gold_labels': sim_scores})
-
-    outputs_df.to_csv(os.path.join(results_save_path, f'sts_model_{encoder}_preds.csv'))
-    plot_df(outputs_df, encoder, spearman_rank, "idk", results_save_path)
-
-
-def test_fn(model, encoder, dataset, output_path):
-    # Get embeddings of sentences.
-    first_sent = dataset['sentence1'].tolist()
-    second_sent = dataset['sentence2'].tolist()
-    norm_labels = [i['similarity_score'] / 5.0 for i in test_dataset]
-
-    first_sent = model.encode(first_sent, convert_to_tensor=True)
-    second_sent = model.encode(second_sent, convert_to_tensor=True)
-    pred_scores = model.similarity(first_sent, second_sent).tolist()
-    sim_scores = [score for score in norm_labels]
     
-    # Test evaluator.
-    test_evaluator = evaluation.EmbeddingSimilarityEvaluator.from_input_examples(test_examples)
-    test_evaluator(model, output_path=output_path)
+    outputs = {'preds': preds}
+    if sim_scores is not None:
+        outputs['gold_labels'] = sim_scores
+        
+    outputs_df = pd.DataFrame(outputs)
+    outputs_df.to_csv(os.path.join(output_dir, f'sts_model_preds.csv'))
+    
+    return preds
+
+
+def get_spearman_rank_correlation(scores1, scores2, output_dir):
+    # get spearman rank correlation
+    args = get_args()
+    encoder = args.encoder
+    
+    spearman_rank = stats.spearmanr(scores1, scores2)
+    print("Spearman rank correlation", spearman_rank.statistic)
+
+    x = scores1
+    y = scores2
+    plt.scatter(x, y)
+    plt.plot(x.sort_values(), y.sort_values(), color='red')
+    plt.title("Spearman correlation coefficient: {:.2f}".format(spearman_rank.statistic))
+    plt.xlabel("predictions")
+    plt.ylabel("gold labels")
+    plt.savefig(os.path.join(output_dir, f"spearman_rank_test_{encoder}"))
+    plt.show()
     
 
 if __name__  == "__main__":
-    # cs experiment examples
-    parser = argparse.ArgumentParser(description='Semantic Text Similarity Evaluation')
-    parser.add_argument('--dataset', type=str, required=True, help='Name of dataset in dataset root dir')
-    parser.add_argument('--model_dir', type=str, required=True, help='Path to save the model')
-    parser.add_argument('--output_dir', type=str, required=True, help='Path to save the model')
-    parser.add_argument('--seed', type=int, default=42, help='Random seed for data shuffle')
-    parser.add_argument('--max_num_samples_eval', type=int, default=6000, help='Maximum number of samples used in evaluation')
-
-    args = parser.parse_args()
+    args = get_args()
     
     seed = args.seed
     dataset_file = args.dataset
     max_num_samples_eval = args.max_num_samples_eval
+    encoder = args.encoder
 
     data = pd.read_csv(dataset_file)
 
@@ -165,26 +159,45 @@ if __name__  == "__main__":
     data = data.sample(frac=1, random_state=seed).reset_index(drop=True)[:max_num_samples_eval]
     print(data.head())
 
-
-    cs_cs = None
-    es_es = None
+    # All the columns are cs, es, en
+    cs_cs = pd.read_csv('data/semantics/cs_majEn_semantic.csv')
+    es_es = pd.read_csv('data/semantics/cs_majEs_semantic.csv')
     en_en = None
     en_es = None
     cs_es = None
     cs_en = None
+    
+    # Majority en cs
+    # - scores cs with en, cs with es
+    # Majority es cs
+    # - scores cs with en, cs with cs
+    # Get correlation with en with es
+    
+    
+    en_dataset = load_dataset("stsb_multi_mt", "en")
+    es_dataset = load_dataset("stsb_multi_mt", "es")
 
-    encoders = ['xlm-roberta-base'] # 'bert-base-multilingual-uncased', 
-    for encoder in encoders:
-        model_path = os.path.join(
-            args.model_dir,
-            f'{encoder}_sts_fit_2e-6'
-        )
-        model = SentenceTransformer(model_path)
-        test_after_train(model, encoder, args.output_dir)
-        
-        # TODO run experiments to get final resuls
-        test_cs_experiments([cs_cs, es_es], 'cs_cs', 'es_es', results_save_path=args.output_dir)
-        test_cs_experiments([cs_cs, en_en], 'cs_cs', 'en_en', results_save_path=args.output_dir)
+    print(en_dataset)
+    print(es_dataset)
 
-        test_cs_experiments([en_es, cs_es], 'en_es', f'cs_es{encoder}', results_save_path=args.output_dir)
-        test_cs_experiments([en_es, cs_en], 'en_es', f'cs_en{encoder}', results_save_path=args.output_dir)
+    # test partition of train sts dataset/
+    dataset = concatenate_datasets([es_dataset['test'], en_dataset['test']])
+
+    model_path = os.path.join(
+        args.model_dir,
+        f'{encoder}_sts_fit_2e-6'
+    )
+    model = SentenceTransformer(model_path)
+    
+    cs_cs_scores = get_similarity_scores(model, cs_cs, args.output_dir)
+    es_es_scores = get_similarity_scores(model, es_es, args.output_dir)
+    en_en_scores = get_similarity_scores(model, en_en, args.output_dir)
+    
+    get_spearman_rank_correlation(cs_cs_scores, es_es_scores)
+    
+    # # TODO run experiments to get final resuls
+    # test_cs_experiments([cs_cs, es_es], 'cs_cs', 'es_es', results_save_path=args.output_dir)
+    # test_cs_experiments([cs_cs, en_en], 'cs_cs', 'en_en', results_save_path=args.output_dir)
+
+    # test_cs_experiments([en_es, cs_es], 'en_es', f'cs_es{encoder}', results_save_path=args.output_dir)
+    # test_cs_experiments([en_es, cs_en], 'en_es', f'cs_en{encoder}', results_save_path=args.output_dir)
