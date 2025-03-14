@@ -84,6 +84,7 @@ def plot_df(df, encoder, spearman_rank, test):
     plt.show()
 
 if __name__  == "__main__":
+    lr = args.training_args.learning_rate
     if args.training_args.do_train:
         en_dataset = load_dataset("stsb_multi_mt", "en")
         es_dataset = load_dataset("stsb_multi_mt", "es")
@@ -159,12 +160,12 @@ if __name__  == "__main__":
             logging.info("Warmup-steps: {}".format(warmup_steps))
 
             model_path = os.path.join(args.training_args.root, args.training_args.save_path,
-                                    f'{encoder}_sts_fit_2e-6')
+                                    f'{encoder}_sts_fit_{lr}')
 
             model.fit(train_objectives=[(train_dataloader, train_loss)],
                       evaluator=evaluator,
                       epochs=epochs,
-                      optimizer_params={'lr': float(args.training_args.learning_rate)},
+                      optimizer_params={'lr': float(lr)},
                       evaluation_steps=1000,
                       warmup_steps=warmup_steps,
                       output_path=model_path)
@@ -172,5 +173,5 @@ if __name__  == "__main__":
             # model = SentenceTransformer(model_path)
             test_examples = prep_data(test_dataset)
             test_evaluator = evaluation.EmbeddingSimilarityEvaluator.from_input_examples(test_examples,
-                                                                                        name=f'{encoder}-sts-2e-5-lr')
+                                                                                        name=f'{encoder}-sts-{lr}-lr')
             print(test_evaluator(model, output_path=results_save_path))

@@ -2,7 +2,7 @@
 
 # Define variables
 DATASET="data/semantics/semantic_data.csv"
-MODEL_DIR="models/batch_size_32"
+MODEL_DIR="models/batch_size_8"
 OUTPUT_DIR="results"
 
 # Create output directory if it doesn't exist
