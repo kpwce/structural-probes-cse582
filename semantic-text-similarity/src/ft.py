@@ -35,15 +35,14 @@ class Config:
         self.training_args = TrainingArgs(raw['training_args'])
         self.reporting_args = ReportingArgs(raw['reporting'])
         self.dataset = raw['dataset']['root']
-        self.encoders = raw['encoders']
+        self.encoder = raw['encoder']
 
 
-with open('config/config.yaml', 'r') as f:
+with open('config/beto.yaml', 'r') as f:
     args = Config(yaml.safe_load(f))
 
-# encoder = args['model']['name']
 results_save_path = os.path.join(args.reporting_args.root, args.reporting_args.csv_path)
-seeds = args.training_args.seeds
+seeds = args.training_args.seeds  # TODO
 
 device = torch.device("cuda")
 
@@ -98,6 +97,12 @@ if __name__  == "__main__":
         train_dataset = concatenate_datasets([es_dataset['train'], en_dataset['train']])
         dev_dataset = concatenate_datasets([es_dataset['dev'], en_dataset['dev']])
         test_dataset = concatenate_datasets([es_dataset['test'], en_dataset['test']])
+        
+        if args.training_args.max_num_samples_train > 0:
+            train_dataset = train_dataset[0:args.training_args.max_num_samples_train]
+            
+        if args.training_args.max_num_samples_validation > 0:
+            dev_dataset = dev_dataset[0:args.training_args.max_num_samples_validation]
 
         print(train_dataset)
         print(train_dataset[500])
@@ -134,44 +139,43 @@ if __name__  == "__main__":
         )
         
 
-        encoders = ['xlm-roberta-base']
+        encoder = args.encoder
+        encoder_name = encoder.replace("/", "-")
+        # make model
+        word_embedding_model = models.Transformer(encoder)
 
-        for encoder in encoders:
-            # make model
-            word_embedding_model = models.Transformer(encoder)
+        # Apply mean pooling to get one fixed sized sentence vector
+        pooling_model = models.Pooling(word_embedding_model.get_word_embedding_dimension(),
+                                    pooling_mode_mean_tokens=True,
+                                    pooling_mode_cls_token=False,
+                                    pooling_mode_max_tokens=False)
 
-            # Apply mean pooling to get one fixed sized sentence vector
-            pooling_model = models.Pooling(word_embedding_model.get_word_embedding_dimension(),
-                                        pooling_mode_mean_tokens=True,
-                                        pooling_mode_cls_token=False,
-                                        pooling_mode_max_tokens=False)
+        model = SentenceTransformer(modules=[word_embedding_model, pooling_model])
 
-            model = SentenceTransformer(modules=[word_embedding_model, pooling_model])
+        train_loss = losses.CosineSimilarityLoss(model=model)
+        evaluator = evaluation.EmbeddingSimilarityEvaluator.from_input_examples(val_ds,
+                                                                                name='sts-dev')  # testing the model
 
-            train_loss = losses.CosineSimilarityLoss(model=model)
-            evaluator = evaluation.EmbeddingSimilarityEvaluator.from_input_examples(val_ds,
-                                                                                    name='sts-dev')  # testing the model
+        # evaluator = evaluation.EmbeddingSimilarityEvaluator.from_input_examples(test_examples, name=f'{encoder}-sts-2e-5-lr')
+        print(evaluator(model, output_path=results_save_path))
+        
+        # Configure the training. We skip evaluation in this example
+        warmup_steps = math.ceil(len(train_dataloader) * epochs * 0.1)  # 10% of train data for warm-up
+        logging.info("Warmup-steps: {}".format(warmup_steps))
 
-            # evaluator = evaluation.EmbeddingSimilarityEvaluator.from_input_examples(test_examples, name=f'{encoder}-sts-2e-5-lr')
-            print(evaluator(model, output_path=results_save_path))
-            
-            # Configure the training. We skip evaluation in this example
-            warmup_steps = math.ceil(len(train_dataloader) * epochs * 0.1)  # 10% of train data for warm-up
-            logging.info("Warmup-steps: {}".format(warmup_steps))
+        model_path = os.path.join(args.training_args.root, args.training_args.save_path,
+                                f'{encoder_name}_sts_fit_{lr}')
 
-            model_path = os.path.join(args.training_args.root, args.training_args.save_path,
-                                    f'{encoder}_sts_fit_{lr}')
+        model.fit(train_objectives=[(train_dataloader, train_loss)],
+                    evaluator=evaluator,
+                    epochs=epochs,
+                    optimizer_params={'lr': float(lr)},
+                    evaluation_steps=1000,
+                    warmup_steps=warmup_steps,
+                    output_path=model_path)
 
-            model.fit(train_objectives=[(train_dataloader, train_loss)],
-                      evaluator=evaluator,
-                      epochs=epochs,
-                      optimizer_params={'lr': float(lr)},
-                      evaluation_steps=1000,
-                      warmup_steps=warmup_steps,
-                      output_path=model_path)
-
-            # model = SentenceTransformer(model_path)
-            test_examples = prep_data(test_dataset)
-            test_evaluator = evaluation.EmbeddingSimilarityEvaluator.from_input_examples(test_examples,
-                                                                                        name=f'{encoder}-sts-{lr}-lr')
-            print(test_evaluator(model, output_path=results_save_path))
+        # model = SentenceTransformer(model_path)
+        test_examples = prep_data(test_dataset)
+        test_evaluator = evaluation.EmbeddingSimilarityEvaluator.from_input_examples(test_examples,
+                                                                                    name=f'{encoder_name}-sts-{lr}-lr')
+        print(test_evaluator(model, output_path=results_save_path))

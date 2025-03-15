@@ -3,7 +3,7 @@ dataset:
 reporting:
   root: .
   csv_path: .
-encoders: None
+encoder: dccuchile/bert-base-spanish-wwm-cased
 training_args:
   do_train: True
   seeds: [50, 60, 70]
@@ -12,6 +12,6 @@ training_args:
   batch_size: 32
   root: models
   save_path: batch_size_32_epochs_5
-  max_num_samples_train: 10
-  max_num_samples_validation: 10
+  max_num_samples_train: -1
+  max_num_samples_validation: -1
 

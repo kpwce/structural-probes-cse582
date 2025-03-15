@@ -9,14 +9,12 @@ import random
 
 SEED=100
 random.seed(SEED)
-# random.seed(100)
 
 
 def get_args():
     parser = argparse.ArgumentParser(description='Semantic Text Similarity Evaluation')
     parser.add_argument('--dataset', type=str, required=True, help='Name of dataset in dataset root dir')
     parser.add_argument('--encoder', type=str, default='xlm-roberta-base', help='Name of encoder to use')
-    # 'bert-base-multilingual-uncased'
     parser.add_argument('--model_dir', type=str, required=True, help='Path to save the model')
     parser.add_argument('--output_dir', type=str, required=True, help='Path to save the model')
     parser.add_argument('--seed', type=int, default=42, help='Random seed for data shuffle')
@@ -112,6 +110,9 @@ def get_similarity_scores(model, dataset, col1: str = "sentence1", col2: str = "
     test_dataset = dataset
     test_examples = prep_data(test_dataset, col1, col2)
     
+    if not os.path.exists(output_dir):
+        os.mkdir(output_dir)
+        
     test_evaluator = evaluation.EmbeddingSimilarityEvaluator.from_input_examples(test_examples)
     test_evaluator(model, output_path=output_dir)
 
@@ -126,17 +127,10 @@ def get_similarity_scores(model, dataset, col1: str = "sentence1", col2: str = "
 
     preds = [pred_scores[i][i] for i in range(len(first_sent))]
     
-    outputs = {'preds': preds}
-    # if sim_scores is not None:
-    #     outputs['gold_labels'] = sim_scores
-        
-    outputs_df = pd.DataFrame(outputs)
-    outputs_df.to_csv(os.path.join(output_dir, f'sts_model_preds_{col1}_{col2}.csv'))
-    
     return preds
 
 
-def get_spearman_rank_correlation(scores1, scores2, output_dir, title=""):
+def get_spearman_rank_correlation(scores1, scores2, output_dir, title="", xlabel="language1", ylabel="language2"):
     # get spearman rank correlation
     args = get_args()
     encoder = args.encoder
@@ -147,10 +141,9 @@ def get_spearman_rank_correlation(scores1, scores2, output_dir, title=""):
     x = scores1
     y = scores2
     plt.scatter(x, y)
-    plt.plot(sorted(x), sorted(x), color='red')
     plt.title("Spearman correlation coefficient: {:.2f}".format(spearman_rank.statistic) + f"\n{title}")
-    plt.xlabel("sentence1")
-    plt.ylabel("sentence2")
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
     plt.savefig(os.path.join(output_dir, f"spearman_rank_test_{encoder}_{SEED}"))
     plt.show()
 
@@ -192,108 +185,22 @@ if __name__  == "__main__":
     data = data.sample(frac=1, random_state=seed).reset_index(drop=True)[:max_num_samples_eval]
     print(data.head())
 
-    # All the columns are cs, es, en
-    cs_maj_en = Dataset.from_pandas(pd.read_csv('data/semantics/cs_majEn_semantic.csv'))
-    cs_maj_es = Dataset.from_pandas(pd.read_csv('data/semantics/cs_majEs_semantic.csv'))
-    cs_random = Dataset.from_pandas(pd.read_csv('data/semantics/cs_random_semantic.csv'))
-    
-    # Majority en cs
-    # - scores cs with en, cs with es
-    # Majority es cs
-    # - scores cs with en, cs with cs
-    # Get correlation with en with es
-    
-    en_dataset = load_dataset("stsb_multi_mt", "en")
-    es_dataset = load_dataset("stsb_multi_mt", "es")
-
-    print(en_dataset)
-    print(es_dataset)
-
-    # test partition of train sts dataset/
-    dataset = concatenate_datasets([es_dataset['test'], en_dataset['test']])
-
     model_path = os.path.join(
         args.model_dir,
         f'{encoder}_sts_fit_2e-05'
     )
     model = SentenceTransformer(model_path)
     
-    # cs_en_scores = get_similarity_scores(model, cs_maj_en, "cs_sentences", "en_sentences", args.output_dir)
-    # cs_es_scores = get_similarity_scores(model, cs_maj_en, "cs_sentences", "es_sentences", args.output_dir)
+    ### Sentence pair correlations
+    out_dir = os.path.join(args.output_dir, "sentence_pair_correlations")
+    if not os.path.exists(out_dir):
+        os.mkdir(out_dir)
     
-    # en_es_scores = get_similarity_scores(model, cs_maj_en, "en_sentences", "es_sentences", args.output_dir)
-    # cs_en_scores = get_similarity_scores(model, cs_maj_en, "cs_sentences", "en_sentences", args.output_dir)
-    # get_spearman_rank_correlation(en_es_scores, cs_en_scores, args.output_dir)
-    
-    # en_es_scores = get_similarity_scores(model, cs_maj_en, "en_sentences", "es_sentences", args.output_dir)
-    # cs_es_scores = get_similarity_scores(model, cs_maj_en, "cs_sentences", "es_sentences", args.output_dir)
-    # get_spearman_rank_correlation(en_es_scores, cs_es_scores, args.output_dir)
-    
-    # sentence_pairs = get_random_sentence_pairs(cs_maj_en, ["en_sentences", "es_sentences"])
-    # en_pairs, es_pairs = sentence_pairs
-    # en_scores = get_similarity_scores(model, en_pairs, "sentence1", "sentence2", args.output_dir)
-    # es_scores = get_similarity_scores(model, es_pairs, "sentence1", "sentence2", args.output_dir)
-    # get_spearman_rank_correlation(en_scores, es_scores, args.output_dir)
-    
-    # print("Maj en, en, es")
-    # sentence_pairs = get_random_sentence_pairs(cs_maj_en, ["en_sentences", "es_sentences"])
-    # en_pairs, es_pairs = sentence_pairs
-    # en_scores = get_similarity_scores(model, en_pairs, "sentence1", "sentence2", args.output_dir)
-    # es_scores = get_similarity_scores(model, es_pairs, "sentence1", "sentence2", args.output_dir)
-    # get_spearman_rank_correlation(en_scores, es_scores, args.output_dir)
-    
-    # print("Maj en, en, cs")
-    # sentence_pairs = get_random_sentence_pairs(cs_maj_en, ["en_sentences", "cs_sentences"])
-    # en_pairs, cs_pairs = sentence_pairs
-    # en_scores = get_similarity_scores(model, en_pairs, "sentence1", "sentence2", args.output_dir)
-    # cs_scores = get_similarity_scores(model, cs_pairs, "sentence1", "sentence2", args.output_dir)
-    # get_spearman_rank_correlation(en_scores, cs_scores, args.output_dir)
-
-    # print("Maj en, es, cs")
-    # sentence_pairs = get_random_sentence_pairs(cs_maj_en, ["es_sentences", "cs_sentences"])
-    # a, b = sentence_pairs
-    # a_s = get_similarity_scores(model, a, "sentence1", "sentence2", args.output_dir)
-    # b_s = get_similarity_scores(model, b, "sentence1", "sentence2", args.output_dir)
-    # get_spearman_rank_correlation(a_s, b_s, args.output_dir)
-    
-    # print("Maj es, en, es")
-    # sentence_pairs = get_random_sentence_pairs(cs_maj_es, ["en_sentences", "es_sentences"])
-    # a, b = sentence_pairs
-    # a_s = get_similarity_scores(model, a, "sentence1", "sentence2", args.output_dir)
-    # b_s = get_similarity_scores(model, b, "sentence1", "sentence2", args.output_dir)
-    # get_spearman_rank_correlation(a_s, b_s, args.output_dir)
-    
-    print("Maj es, en, cs")
-    sentence_pairs = get_random_sentence_pairs(cs_maj_es, ["en_sentences", "cs_sentences"])
+    sentence_pairs = get_random_sentence_pairs(data, ["en_sentences", "cs_sentences"])
     a, b = sentence_pairs
     a_s = get_similarity_scores(model, a, "sentence1", "sentence2", args.output_dir)
     b_s = get_similarity_scores(model, b, "sentence1", "sentence2", args.output_dir)
-    get_spearman_rank_correlation(a_s, b_s, args.output_dir, "Correlation between en & cs in a majority cs-es corpus")
+    print(a_s[0:10])
+    print(b_s[0:10])
+    get_spearman_rank_correlation(a_s, b_s, out_dir, "Correlation between en & cs Hindi-English", "en similarities", "cs similarities")
     
-    # print("Maj es, es, cs")
-    # sentence_pairs = get_random_sentence_pairs(cs_maj_es, ["es_sentences", "cs_sentences"])
-    # a, b = sentence_pairs
-    # a_s = get_similarity_scores(model, a, "sentence1", "sentence2", args.output_dir)
-    # b_s = get_similarity_scores(model, b, "sentence1", "sentence2", args.output_dir)
-    # get_spearman_rank_correlation(a_s, b_s, args.output_dir)
-    
-    # print("Random, en, es")
-    # sentence_pairs = get_random_sentence_pairs(cs_random, ["en_sentences", "es_sentences"])
-    # en_pairs, es_pairs = sentence_pairs
-    # en_scores = get_similarity_scores(model, en_pairs, "sentence1", "sentence2", args.output_dir)
-    # es_scores = get_similarity_scores(model, es_pairs, "sentence1", "sentence2", args.output_dir)
-    # get_spearman_rank_correlation(en_scores, es_scores, args.output_dir)
-    
-    # print("Random, en, cs")
-    # sentence_pairs = get_random_sentence_pairs(cs_random, ["en_sentences", "cs_sentences"])
-    # en_pairs, cs_pairs = sentence_pairs
-    # en_scores = get_similarity_scores(model, en_pairs, "sentence1", "sentence2", args.output_dir)
-    # cs_scores = get_similarity_scores(model, cs_pairs, "sentence1", "sentence2", args.output_dir)
-    # get_spearman_rank_correlation(en_scores, cs_scores, args.output_dir)
-        
-    # print("Random, es, cs")
-    # sentence_pairs = get_random_sentence_pairs(cs_random, ["es_sentences", "cs_sentences"])
-    # es_pairs, cs_pairs = sentence_pairs
-    # es_scores = get_similarity_scores(model, es_pairs, "sentence1", "sentence2", args.output_dir)
-    # cs_scores = get_similarity_scores(model, cs_pairs, "sentence1", "sentence2", args.output_dir)
-    # get_spearman_rank_correlation(es_scores, cs_scores, args.output_dir)

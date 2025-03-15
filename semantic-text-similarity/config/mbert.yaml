@@ -1,0 +1,17 @@
+dataset:
+  root: ../../data/semantics
+reporting:
+  root: .
+  csv_path: .
+encoder: bert-base-multilingual-uncased
+training_args:
+  do_train: True
+  seeds: [50, 60, 70]
+  learning_rate: 0.00002  # keep lr small to avoid overfitting
+  epochs: 5
+  batch_size: 32
+  root: models
+  save_path: batch_size_32_epochs_5
+  max_num_samples_train: -1
+  max_num_samples_validation: -1
+
